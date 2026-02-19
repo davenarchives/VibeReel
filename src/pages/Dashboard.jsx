@@ -64,8 +64,8 @@ const Dashboard = () => {
 
     const handleCardClick = (movie) => navigate(`/watch/${movie.id}`);
 
-    // Hero movie = first trending result
-    const heroMovie = trending[0] || null;
+    // Hero movies = first 5 trending results for the spotlight carousel
+    const heroMovies = trending.slice(0, 5);
 
     return (
         <div className="page-wrapper">
@@ -76,7 +76,7 @@ const Dashboard = () => {
                 {/* ══════════════════════════════════════════════
             HERO BANNER
         ══════════════════════════════════════════════ */}
-                <HeroBanner movie={heroMovie} />
+                <HeroBanner movies={heroMovies} />
 
                 {/* ══════════════════════════════════════════════
             FILTER TAB BAR  (Mercy-inspired)

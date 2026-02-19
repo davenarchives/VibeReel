@@ -1,26 +1,57 @@
 /**
- * HeroBanner.jsx
- * ─────────────────────────────────────────────
- * Full-width hero spotlight section — inspired by
- * Yorumi's "Spotlight" and Mercy's featured banner.
+ * HeroBanner.jsx — Sliding Spotlight Carousel
+ * ─────────────────────────────────────────────────────────────
+ * All slides are laid out in a horizontal track.
+ * Navigation moves the track with CSS transform: translateX,
+ * giving a smooth, blink-free slide animation.
  *
- * Props:
- *   movie  {object}  – TMDB movie object to feature
- * ─────────────────────────────────────────────
+ * • receives movies[] array (up to 5 from Dashboard)
+ * • useState(activeIndex) tracks current slide
+ * • useEffect auto-advances every 6 s with clearInterval cleanup
+ * • Dot clicks and arrow clicks jump to any slide
+ * ─────────────────────────────────────────────────────────────
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/original';
-const TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w500';
+const INTERVAL_MS = 6000;
 
-const HeroBanner = ({ movie }) => {
+const HeroBanner = ({ movies = [] }) => {
     const navigate = useNavigate();
-    const [trailerHovered, setTrailerHovered] = useState(false);
+    const total = Math.min(movies.length, 5);
+    const timerRef = useRef(null);
 
-    if (!movie) {
-        // Skeleton placeholder while loading
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    /* ── Go to slide, reset auto-advance timer ── */
+    const goTo = useCallback((idx) => {
+        setActiveIndex(idx);
+        // Reset interval so it counts from the moment user clicks
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = setInterval(() => {
+            setActiveIndex(prev => (prev + 1) % total);
+        }, INTERVAL_MS);
+    }, [total]);
+
+    /* ── Auto-advance on mount ── */
+    useEffect(() => {
+        if (total < 2) return;
+        timerRef.current = setInterval(() => {
+            setActiveIndex(prev => (prev + 1) % total);
+        }, INTERVAL_MS);
+        return () => clearInterval(timerRef.current);
+    }, [total]);
+
+    /* ── Keyboard accessibility ── */
+    const handleKey = (e) => {
+        if (e.key === 'ArrowRight') goTo((activeIndex + 1) % total);
+        if (e.key === 'ArrowLeft') goTo((activeIndex - 1 + total) % total);
+    };
+
+    // ── Skeleton while TMDB data loads ─────────────────────────
+    if (!total) {
         return (
             <div className="hero-skeleton">
                 <div className="hero-skeleton-inner" />
@@ -28,62 +59,83 @@ const HeroBanner = ({ movie }) => {
         );
     }
 
-    const {
-        id,
-        title,
-        overview,
-        backdrop_path,
-        poster_path,
-        release_date,
-        vote_average,
-        genre_ids = [],
-    } = movie;
-
-    const backdropUrl = backdrop_path
-        ? `${TMDB_BACKDROP_BASE}${backdrop_path}`
-        : null;
-
-    const year = release_date ? release_date.substring(0, 4) : '';
-
     return (
-        <section className="hero" aria-label="Featured Movie">
-            {/* ── Background image ── */}
-            {backdropUrl && (
-                <div
-                    className="hero-bg"
-                    style={{ backgroundImage: `url(${backdropUrl})` }}
-                />
-            )}
+        <section
+            className="hero"
+            aria-label="Featured Movie Spotlight"
+            onKeyDown={handleKey}
+            tabIndex={-1}
+        >
+            {/*
+        ── SLIDE TRACK ──────────────────────────────────────────
+        All backdrop images in a flex row.
+        transform: translateX(−activeIndex × 100%) slides them.
+        transition makes it smooth — no opacity swap, no blink.
+      */}
+            <div
+                className="hero-track"
+                style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+                aria-live="off"
+            >
+                {movies.slice(0, 5).map((movie, i) => (
+                    <div key={movie.id} className="hero-slide" aria-hidden={i !== activeIndex}>
+                        {movie.backdrop_path && (
+                            <div
+                                className="hero-bg"
+                                style={{
+                                    backgroundImage: `url(${TMDB_BACKDROP_BASE}${movie.backdrop_path})`,
+                                }}
+                            />
+                        )}
+                        {/* Per-slide gradient overlays */}
+                        <div className="hero-grad-left" />
+                        <div className="hero-grad-bottom" />
+                        <div className="hero-grad-top" />
+                    </div>
+                ))}
+            </div>
 
-            {/* ── Gradient overlays ── */}
-            <div className="hero-grad-left" />
-            <div className="hero-grad-bottom" />
-            <div className="hero-grad-top" />
-
-            {/* ── Content ── */}
-            <div className="hero-content">
-
-                {/* Eyebrow label */}
-                <p className="hero-eyebrow">🎬 Spotlight</p>
+            {/*
+        ── CONTENT LAYER ─────────────────────────────────────────
+        Lives above the track, always visible.
+        Transitions the text with a subtle translateY + opacity
+        whenever activeIndex changes.
+      */}
+            <div className="hero-content" key={activeIndex}>
+                {/* Eyebrow */}
+                <p className="hero-eyebrow">
+                    🎬 Spotlight&nbsp;
+                    <span className="hero-eyebrow__num">#{activeIndex + 1}</span>
+                </p>
 
                 {/* Title */}
-                <h1 className="hero-title">{title}</h1>
+                <h1 className="hero-title">{movies[activeIndex].title}</h1>
 
-                {/* Meta row */}
+                {/* Meta badge row */}
                 <div className="hero-meta">
-                    {year && <span>{year}</span>}
-                    {vote_average > 0 && (
-                        <span className="hero-rating">
-                            ⭐ {Number(vote_average).toFixed(1)}
+                    {movies[activeIndex].release_date && (
+                        <span className="hero-meta__year">
+                            {movies[activeIndex].release_date.substring(0, 4)}
                         </span>
                     )}
-                    <span className="hero-hd-badge">HD</span>
+                    <span className="hero-meta__sep">·</span>
+                    {movies[activeIndex].vote_average > 0 && (
+                        <span className="hero-meta__rating">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="#f59e0b">
+                                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+                            </svg>
+                            {Number(movies[activeIndex].vote_average).toFixed(1)}
+                        </span>
+                    )}
+                    <span className="hero-meta__hd">HD</span>
                 </div>
 
                 {/* Synopsis */}
-                {overview && (
+                {movies[activeIndex].overview && (
                     <p className="hero-overview">
-                        {overview.length > 200 ? overview.substring(0, 200) + '…' : overview}
+                        {movies[activeIndex].overview.length > 180
+                            ? movies[activeIndex].overview.substring(0, 180) + '…'
+                            : movies[activeIndex].overview}
                     </p>
                 )}
 
@@ -91,7 +143,7 @@ const HeroBanner = ({ movie }) => {
                 <div className="hero-actions">
                     <button
                         className="hero-btn-primary"
-                        onClick={() => navigate(`/watch/${id}`)}
+                        onClick={() => navigate(`/watch/${movies[activeIndex].id}`)}
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <polygon points="5,3 19,12 5,21" />
@@ -101,37 +153,57 @@ const HeroBanner = ({ movie }) => {
 
                     <button
                         className="hero-btn-secondary"
-                        onMouseEnter={() => setTrailerHovered(true)}
-                        onMouseLeave={() => setTrailerHovered(false)}
+                        onClick={() => navigate(`/watch/${movies[activeIndex].id}`)}
                     >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <line x1="12" y1="8" x2="12" y2="16" />
-                            <line x1="8" y1="12" x2="16" y2="12" />
-                        </svg>
                         Details
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
                     </button>
-                </div>
-
-                {/* Dot indicators */}
-                <div className="hero-dots" aria-hidden="true">
-                    {[0, 1, 2, 3, 4].map(i => (
-                        <span key={i} className={`hero-dot ${i === 0 ? 'active' : ''}`} />
-                    ))}
                 </div>
             </div>
 
-            {/* ── Floating poster (desktop only) ── */}
-            {poster_path && (
-                <div className="hero-poster-wrap">
-                    <img
-                        src={`${TMDB_POSTER_BASE}${poster_path}`}
-                        alt={title}
-                        className="hero-poster"
-                    />
-                </div>
+            {/* ── Left / Right arrow buttons ── */}
+            {total > 1 && (
+                <>
+                    <button
+                        className="hero-arrow hero-arrow--left"
+                        onClick={() => goTo((activeIndex - 1 + total) % total)}
+                        aria-label="Previous spotlight"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
+                    <button
+                        className="hero-arrow hero-arrow--right"
+                        onClick={() => goTo((activeIndex + 1) % total)}
+                        aria-label="Next spotlight"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                    </button>
+                </>
             )}
+
+            {/* ── Dot indicators — centered bottom ── */}
+            <div className="hero-dots-bar" role="tablist" aria-label="Spotlight slides">
+                {Array.from({ length: total }).map((_, i) => (
+                    <button
+                        key={i}
+                        role="tab"
+                        aria-selected={i === activeIndex}
+                        aria-label={`Spotlight slide ${i + 1}: ${movies[i]?.title}`}
+                        className={`hero-dot ${i === activeIndex ? 'active' : ''}`}
+                        onClick={() => goTo(i)}
+                    />
+                ))}
+            </div>
+
         </section>
     );
 };
