@@ -1,16 +1,9 @@
 /**
  * Watch.jsx  ─ Watch Page "/watch/:id"
  * ═══════════════════════════════════════════════════════════════
- * Streams the selected movie via the Videasy iframe embed API.
- *
- * Videasy embed URL pattern:
- *   https://player.videasy.net/movie/{tmdb_id}
- *
- * Lab Requirements demonstrated:
- *  ✅ Semantic HTML: <main>, <section>, <header> (back nav)
- *  ✅ useState – manages player-ready flag and info panel toggle
- *  ✅ useParams – reads the dynamic :id from the URL
- *  ✅ Reusable <Header> and <StatusCard> components with props
+ * Streams the selected movie via Videasy iframe.
+ * UI: full-width player with info panel below — inspired by
+ * Mercy's clean watch layout.
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -19,299 +12,198 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import Header from '../components/Header';
 import StatusCard from '../components/StatusCard';
-
+import MovieRow from '../components/MovieRow';
 import { MOOD_MOVIES } from '../data/moodData';
 
 const TMDB_API_KEY = '05a3f3071ad3fa222ab689fb62ed0df1';
 const VIDEASY_BASE = 'https://player.videasy.net/movie';
 const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p/w500';
+const TMDB_BD_BASE = 'https://image.tmdb.org/t/p/original';
 
 const Watch = () => {
-    const { id } = useParams();   // dynamic :id from the URL
+    const { id } = useParams();
     const navigate = useNavigate();
 
-    /*
-     * ── useState: track player load state ─────────────────────
-     * When the iframe fires `onLoad`, we flip `playerReady` to
-     * true and hide the loading overlay — a visible UI update.
-     */
+    /* ── useState: iframe load state ── */
     const [playerReady, setPlayerReady] = useState(false);
 
-    /*
-     * ── useState: toggle the "Movie Info" side panel ──────────
-     * Demonstrates a second independent interactive behaviour.
-     */
+    /* ── useState: info panel visibility toggle ── */
     const [showInfo, setShowInfo] = useState(true);
 
-    // Movie metadata fetched from TMDB (live) or from the mock array
     const [movieMeta, setMovieMeta] = useState(null);
+    const [similar, setSimilar] = useState([]);
 
-    // ── Look up metadata ──────────────────────────────────────
+    // ── Fetch movie metadata ──────────────────────────────────
     useEffect(() => {
-        // First check if the movie exists in our local mock data
-        const localMatch = MOOD_MOVIES.find((m) => m.id === Number(id));
-        if (localMatch) {
-            setMovieMeta(localMatch);
-            return;
-        }
+        setPlayerReady(false);
+        setMovieMeta(null);
 
-        // Otherwise fetch from TMDB
-        const fetchMeta = async () => {
+        const local = MOOD_MOVIES.find(m => m.id === Number(id));
+        if (local) { setMovieMeta(local); return; }
+
+        const fetchAll = async () => {
             try {
-                const res = await fetch(
-                    `https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`
-                );
-                if (res.ok) {
-                    const data = await res.json();
-                    setMovieMeta(data);
-                }
-            } catch (_) {
-                // Silently fail – the player will still work
-            }
+                const [metaRes, simRes] = await Promise.all([
+                    fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`),
+                    fetch(`https://api.themoviedb.org/3/movie/${id}/similar?api_key=${TMDB_API_KEY}&language=en-US`),
+                ]);
+                if (metaRes.ok) setMovieMeta(await metaRes.json());
+                if (simRes.ok) setSimilar((await simRes.json()).results?.slice(0, 12) || []);
+            } catch (_) { }
         };
-
-        fetchMeta();
+        fetchAll();
     }, [id]);
 
-    // ── Build Videasy iframe URL ──────────────────────────────
     const videasyUrl = `${VIDEASY_BASE}/${id}`;
+    const backdropUrl = movieMeta?.backdrop_path
+        ? `${TMDB_BD_BASE}${movieMeta.backdrop_path}` : null;
 
-    // ─────────────────────────────────────────────────────────
     return (
-        <>
-            {/* Reusable Header with a contextual subtitle prop */}
-            <Header subtitle={movieMeta ? `Now Streaming: ${movieMeta.title}` : 'Loading stream…'} />
+        <div className="page-wrapper">
+            <Header subtitle={movieMeta ? `Watching: ${movieMeta.title}` : 'Loading…'} />
 
-            <main className="max-w-7xl mx-auto px-6 py-8" style={{ minHeight: '80vh' }}>
-
-                {/* ── Back navigation ── */}
-                <div className="mb-5 flex items-center gap-3">
-                    <button
-                        onClick={() => navigate('/')}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '8px',
-                            background: 'var(--vr-surface2)', border: '1px solid var(--vr-border)',
-                            borderRadius: 999, padding: '8px 20px', color: 'var(--vr-text)',
-                            fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
-                            transition: 'background 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(168,85,247,0.18)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--vr-surface2)'}
-                    >
-                        ← Back to Dashboard
-                    </button>
-
-                    {/* Show/hide info toggle — useState driven */}
-                    <button
-                        onClick={() => setShowInfo((prev) => !prev)}
-                        style={{
-                            background: showInfo ? 'rgba(168,85,247,0.18)' : 'var(--vr-surface2)',
-                            border: '1px solid var(--vr-border)', borderRadius: 999,
-                            padding: '8px 20px',
-                            color: showInfo ? '#a855f7' : 'var(--vr-muted)',
-                            fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer',
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        {showInfo ? '🎬 Hide Info' : '🎬 Show Info'}
-                    </button>
-                </div>
-
-                {/* ── Two-column layout: player + optional info panel ── */}
-                <div className="flex gap-6 flex-wrap" style={{ alignItems: 'flex-start' }}>
-
-                    {/* ══════════════════════════════════════════════
-              LEFT COLUMN – Videasy iframe player
-          ══════════════════════════════════════════════ */}
-                    <section
-                        aria-label="Movie Player"
-                        style={{ flex: showInfo ? '1 1 60%' : '1 1 100%', minWidth: 300 }}
-                    >
-                        <div className="player-wrapper">
-                            {/* Loading shimmer overlay — hidden once iframe fires onLoad */}
-                            {!playerReady && (
-                                <div
-                                    className="skeleton"
-                                    style={{
-                                        position: 'absolute', inset: 0, zIndex: 10,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        borderRadius: 'var(--vr-card-radius)',
-                                    }}
-                                >
-                                    <div className="flex flex-col items-center gap-3">
-                                        <div className="spinner" />
-                                        <p style={{ color: 'var(--vr-muted)', fontSize: '0.85rem' }}>
-                                            Connecting to stream…
-                                        </p>
-                                    </div>
+            <main>
+                {/* ══════════════════════════════════════════════
+            PLAYER SECTION — full width
+        ══════════════════════════════════════════════ */}
+                <section className="watch-player-section" aria-label="Movie Player">
+                    <div className="watch-player-wrap">
+                        {/* Loading shimmer */}
+                        {!playerReady && (
+                            <div className="watch-player-shimmer skeleton">
+                                <div className="loading-center">
+                                    <div className="spinner" />
+                                    <p style={{ color: 'var(--vr-muted)', fontSize: '0.85rem', marginTop: 8 }}>
+                                        Connecting to stream…
+                                    </p>
                                 </div>
-                            )}
+                            </div>
+                        )}
+                        <iframe
+                            src={videasyUrl}
+                            title={movieMeta ? `Watch ${movieMeta.title}` : 'Movie Player'}
+                            allowFullScreen
+                            allow="autoplay; fullscreen; picture-in-picture"
+                            onLoad={() => setPlayerReady(true)}
+                            className={`watch-iframe ${playerReady ? 'watch-iframe--ready' : ''}`}
+                        />
+                    </div>
+                </section>
 
-                            {/*
-                Videasy embed iframe.
-                onLoad sets playerReady → true (useState update).
-              */}
-                            <iframe
-                                src={videasyUrl}
-                                title={movieMeta ? `Watch ${movieMeta.title}` : 'Movie Player'}
-                                allowFullScreen
-                                allow="autoplay; fullscreen; picture-in-picture"
-                                onLoad={() => setPlayerReady(true)} /* ← useState setter */
-                                style={{ opacity: playerReady ? 1 : 0, transition: 'opacity 0.5s' }}
-                            />
-                        </div>
+                {/* ══════════════════════════════════════════════
+            BELOW-PLAYER AREA: back btn + title + info
+        ══════════════════════════════════════════════ */}
+                <div className="watch-below">
 
-                        <p style={{
-                            marginTop: '0.75rem', fontSize: '0.7rem',
-                            color: 'var(--vr-muted)', textAlign: 'center',
-                        }}>
-                            Powered by{' '}
-                            <a href="https://videasy.net" target="_blank" rel="noopener noreferrer"
-                                style={{ color: 'var(--vr-accent)' }}>Videasy</a>
-                            {' '}· TMDB ID: {id}
-                        </p>
-                    </section>
+                    {/* ── Action row ── */}
+                    <div className="watch-action-row">
+                        <button className="watch-back-btn" onClick={() => navigate('/')}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <polyline points="19 12 5 12" />
+                                <polyline points="12 5 5 12 12 19" />
+                            </svg>
+                            Back to Dashboard
+                        </button>
 
-                    {/* ══════════════════════════════════════════════
-              RIGHT COLUMN – Movie Info Panel
-              Toggled by showInfo state [Lab 3, Task 3]
-          ══════════════════════════════════════════════ */}
-                    {showInfo && (
-                        <section
-                            aria-label="Movie Information"
-                            className="fade-in-up"
-                            style={{ flex: '1 1 280px', maxWidth: 340 }}
+                        <button
+                            className={`watch-info-btn ${showInfo ? 'active' : ''}`}
+                            onClick={() => setShowInfo(p => !p)} /* ← useState toggle */
                         >
-                            {movieMeta ? (
-                                <div className="flex flex-col gap-4">
+                            {showInfo ? 'Hide Details' : 'Show Details'}
+                        </button>
+                    </div>
 
-                                    {/* Poster */}
-                                    {movieMeta.poster_path && (
-                                        <img
-                                            src={`${TMDB_IMG_BASE}${movieMeta.poster_path}`}
-                                            alt={`${movieMeta.title} poster`}
-                                            style={{
-                                                width: '100%',
-                                                borderRadius: 'var(--vr-card-radius)',
-                                                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                                            }}
-                                        />
-                                    )}
-
-                                    {/* Title */}
-                                    <div>
-                                        <h1 style={{ fontSize: '1.3rem', fontWeight: 800, lineHeight: 1.2, marginBottom: '0.4rem' }}>
-                                            {movieMeta.title}
-                                        </h1>
-                                        {movieMeta.tagline && (
-                                            <p style={{ color: 'var(--vr-accent)', fontSize: '0.8rem', fontStyle: 'italic' }}>
-                                                "{movieMeta.tagline}"
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Stats row via .map() [MAP-RENDER] */}
-                                    <div className="flex flex-col gap-2">
-                                        {[
-                                            {
-                                                icon: '⭐', label: 'Rating',
-                                                value: movieMeta.vote_average
-                                                    ? `${Number(movieMeta.vote_average).toFixed(1)} / 10`
-                                                    : 'N/A',
-                                                color: 'rgba(245,158,11,0.18)',
-                                            },
-                                            {
-                                                icon: '📅', label: 'Released',
-                                                value: movieMeta.release_date || 'N/A',
-                                                color: 'rgba(168,85,247,0.18)',
-                                            },
-                                            {
-                                                icon: '⏱️', label: 'Runtime',
-                                                value: movieMeta.runtime ? `${movieMeta.runtime} min` : 'N/A',
-                                                color: 'rgba(59,130,246,0.18)',
-                                            },
-                                            {
-                                                icon: '💰', label: 'Revenue',
-                                                value: movieMeta.revenue
-                                                    ? `$${(movieMeta.revenue / 1e6).toFixed(0)}M`
-                                                    : 'N/A',
-                                                color: 'rgba(16,185,129,0.18)',
-                                            },
-                                        ].map((stat) => (
-                                            <StatusCard
-                                                key={stat.label}
-                                                icon={stat.icon}
-                                                label={stat.label}
-                                                value={stat.value}
-                                                color={stat.color}
-                                            />
-                                        ))}
-                                    </div>
-
-                                    {/* Overview */}
-                                    {movieMeta.overview && (
-                                        <div style={{
-                                            background: 'var(--vr-surface2)',
-                                            border: '1px solid var(--vr-border)',
-                                            borderRadius: 'var(--vr-radius)',
-                                            padding: '1rem',
-                                        }}>
-                                            <p style={{
-                                                fontSize: '0.75rem', fontWeight: 700, color: 'var(--vr-muted)',
-                                                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem',
-                                            }}>
-                                                Synopsis
-                                            </p>
-                                            <p style={{ fontSize: '0.83rem', lineHeight: 1.6, color: '#c4c3cf' }}>
-                                                {movieMeta.overview}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Genres via .map() [MAP-RENDER] */}
-                                    {movieMeta.genres && movieMeta.genres.length > 0 && (
-                                        <div className="flex flex-wrap gap-2">
-                                            {movieMeta.genres.map((genre) => (
-                                                <span
-                                                    key={genre.id}
-                                                    style={{
-                                                        fontSize: '0.72rem',
-                                                        background: 'rgba(168,85,247,0.12)',
-                                                        border: '1px solid rgba(168,85,247,0.3)',
-                                                        borderRadius: 999, padding: '4px 12px',
-                                                        color: '#a855f7', fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {genre.name}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                </div>
-                            ) : (
-                                /* Loading skeleton for the info panel */
-                                <div className="flex flex-col gap-3">
-                                    {[280, 40, 80, 60, 200].map((h, i) => (
-                                        <div key={i} className="skeleton"
-                                            style={{ height: h, borderRadius: 'var(--vr-radius)' }} />
-                                    ))}
-                                </div>
-                            )}
-                        </section>
+                    {/* ── Movie title row ── */}
+                    {movieMeta && (
+                        <div className="watch-title-row">
+                            <h1 className="watch-title">{movieMeta.title}</h1>
+                            <div className="watch-meta">
+                                {movieMeta.release_date && (
+                                    <span>{movieMeta.release_date.substring(0, 4)}</span>
+                                )}
+                                {movieMeta.runtime && (
+                                    <span>{movieMeta.runtime} min</span>
+                                )}
+                                {movieMeta.vote_average > 0 && (
+                                    <span className="watch-rating">
+                                        ⭐ {Number(movieMeta.vote_average).toFixed(1)}
+                                    </span>
+                                )}
+                                <span className="hd-pill">HD</span>
+                            </div>
+                        </div>
                     )}
 
+                    {/* ── Info panel (toggled by showInfo state) ── */}
+                    {showInfo && movieMeta && (
+                        <div className="watch-info-grid fade-in-up">
+
+                            {/* Left: overview + genres */}
+                            <div className="watch-info-left">
+                                {movieMeta.tagline && (
+                                    <p className="watch-tagline">"{movieMeta.tagline}"</p>
+                                )}
+                                {movieMeta.overview && (
+                                    <p className="watch-overview">{movieMeta.overview}</p>
+                                )}
+                                {/* Genre pills via .map() [MAP-RENDER] */}
+                                {movieMeta.genres?.length > 0 && (
+                                    <div className="watch-genres">
+                                        {movieMeta.genres.map(g => (
+                                            <span key={g.id} className="genre-pill">{g.name}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right: stat cards via .map() [MAP-RENDER] */}
+                            <div className="watch-stats">
+                                {[
+                                    { icon: '⭐', label: 'Rating', value: movieMeta.vote_average ? `${Number(movieMeta.vote_average).toFixed(1)} / 10` : 'N/A', color: 'rgba(245,158,11,0.2)' },
+                                    { icon: '📅', label: 'Released', value: movieMeta.release_date || 'N/A', color: 'rgba(168,85,247,0.2)' },
+                                    { icon: '⏱️', label: 'Runtime', value: movieMeta.runtime ? `${movieMeta.runtime} min` : 'N/A', color: 'rgba(59,130,246,0.2)' },
+                                    { icon: '💰', label: 'Revenue', value: movieMeta.revenue ? `$${(movieMeta.revenue / 1e6).toFixed(0)}M` : 'N/A', color: 'rgba(16,185,129,0.2)' },
+                                ].map(s => (
+                                    <StatusCard
+                                        key={s.label}
+                                        icon={s.icon}
+                                        label={s.label}
+                                        value={s.value}
+                                        color={s.color}
+                                    />
+                                ))}
+                            </div>
+
+                        </div>
+                    )}
+
+                    {/* ── Similar Movies carousel ── */}
+                    {similar.length > 0 && (
+                        <MovieRow
+                            title="More Like This"
+                            icon="🎬"
+                            movies={similar}
+                            onCardClick={(m) => navigate(`/watch/${m.id}`)}
+                        />
+                    )}
+
+                    {/* Attribution */}
+                    <p className="watch-attribution">
+                        Streaming via <a href="https://videasy.net" target="_blank" rel="noopener noreferrer">Videasy</a>
+                        &nbsp;·&nbsp; TMDB ID: <code>{id}</code>
+                    </p>
                 </div>
             </main>
 
-            <footer style={{
-                borderTop: '1px solid var(--vr-border)', padding: '1.25rem',
-                textAlign: 'center', color: 'var(--vr-muted)',
-                fontSize: '0.72rem', marginTop: '3rem',
-            }}>
-                VibeReel · AppDev Lab 3 · Streaming via Videasy · Data from TMDB
+            <footer className="site-footer">
+                <div className="site-footer__inner">
+                    <span className="site-footer__logo">VibeReel</span>
+                    <p>AppDev Lab 3 · Streaming via Videasy · Data from TMDB</p>
+                    <p>© 2026 VibeReel</p>
+                </div>
             </footer>
-        </>
+        </div>
     );
 };
 

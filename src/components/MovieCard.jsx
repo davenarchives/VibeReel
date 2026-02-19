@@ -1,106 +1,94 @@
 /**
  * MovieCard.jsx  ─ Lab 3, Task 1: Reusable Component #1
  * ──────────────────────────────────────────────────────
- * Renders a clickable movie poster card.
- * Used by both the "Trending" and "Mood Match" views,
- * demonstrating props-driven reusability.
+ * Poster card used inside horizontal carousel rows.
+ * Inspired by Yorumi/Mercy card style: rating badge in
+ * top-right corner, hover overlay with play button.
  *
  * Props:
- *   movie                  {object}          – TMDB/mock movie object
- *   movie.id               {number}
- *   movie.title            {string}
- *   movie.poster_path      {string}
- *   movie.release_date     {string}
- *   movie.vote_average     {number}
- *   movie.matchPercentage  {number|undefined} – only in mood mode
- *   onClick                {function}         – called when card is clicked
- *   animationDelay         {string}           – CSS animation-delay for stagger
+ *   movie          {object}   – TMDB/mock movie object
+ *   onClick        {function} – called when card is clicked
+ *   animationDelay {string}   – CSS stagger delay
+ *   showMatchBadge {boolean}  – show AI match % (mood mode)
  * ──────────────────────────────────────────────────────
  */
 
 import React, { useState } from 'react';
 
-const TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w500";
-const FALLBACK_IMG = "https://via.placeholder.com/300x450/1c1c28/8b8a9a?text=No+Poster";
+const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p/w342';
+const FALLBACK_IMG = 'https://placehold.co/220x330/1a1a2e/6b6b8a?text=No+Poster';
 
-const MovieCard = ({ movie, onClick, animationDelay = "0ms" }) => {
-    // Local state to handle image loading errors gracefully
+const MovieCard = ({ movie, onClick, animationDelay = '0ms', showMatchBadge = false }) => {
     const [imgError, setImgError] = useState(false);
+    const [hovered, setHovered] = useState(false);
 
     if (!movie) return null;
 
-    const {
-        title,
-        poster_path,
-        release_date,
-        vote_average,
-        matchPercentage, // Present only in Mood Match mode
-    } = movie;
+    const { title, poster_path, release_date, vote_average, matchPercentage } = movie;
 
     const posterSrc = (!imgError && poster_path)
         ? `${TMDB_IMG_BASE}${poster_path}`
         : FALLBACK_IMG;
 
-    // Extract the 4-digit year from release_date (e.g. "2014-11-05" → "2014")
-    const year = release_date ? release_date.substring(0, 4) : "N/A";
+    const year = release_date ? release_date.substring(0, 4) : '';
+
+    // Rating colour: green ≥7, yellow ≥5, red <5
+    const ratingColor = vote_average >= 7
+        ? '#22c55e'   // green
+        : vote_average >= 5
+            ? '#f59e0b' // amber
+            : '#ef4444';// red
 
     return (
-        /*
-         * <article> is the correct semantic element for a self-contained
-         * piece of content (each movie card is independently meaningful).
-         */
         <article
-            className="movie-card fade-in-up"
+            className={`mc ${hovered ? 'mc--hovered' : ''} fade-in-up`}
             style={{ animationDelay }}
             onClick={() => onClick && onClick(movie)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             role="button"
             tabIndex={0}
             aria-label={`Watch ${title}`}
-            /* Keyboard accessibility – trigger click on Enter/Space */
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') onClick && onClick(movie);
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick && onClick(movie); }}
         >
-            {/* ── Poster image ── */}
-            <img
-                src={posterSrc}
-                alt={`${title} movie poster`}
-                onError={() => setImgError(true)}
-                loading="lazy"
-            />
+            {/* ── Poster ── */}
+            <div className="mc__poster-wrap">
+                <img
+                    src={posterSrc}
+                    alt={`${title} poster`}
+                    className="mc__poster"
+                    onError={() => setImgError(true)}
+                    loading="lazy"
+                />
 
-            {/* ── Hover overlay with play icon ── */}
-            <div className="card-overlay" aria-hidden="true">
-                <div className="card-play-icon">
-                    {/* SVG play triangle */}
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-                        <polygon points="5,3 19,12 5,21" />
-                    </svg>
+                {/* Hover overlay */}
+                <div className="mc__overlay" aria-hidden="true">
+                    <div className="mc__play">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                            <polygon points="5,3 19,12 5,21" />
+                        </svg>
+                    </div>
                 </div>
+
+                {/* ── Rating badge (top-right corner like Yorumi) ── */}
+                {vote_average > 0 && (
+                    <div className="mc__rating" style={{ background: ratingColor }}>
+                        {Number(vote_average).toFixed(1)}
+                    </div>
+                )}
+
+                {/* ── AI Match badge (top-left, only in mood mode) ── */}
+                {showMatchBadge && matchPercentage !== undefined && (
+                    <div className="mc__match">
+                        🤖 {matchPercentage}%
+                    </div>
+                )}
             </div>
 
-            {/* ── Match percentage badge (only rendered when prop is present) ── */}
-            {matchPercentage !== undefined && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        top: 10,
-                        right: 10,
-                    }}
-                >
-                    <span className="match-badge">🤖 {matchPercentage}% match</span>
-                </div>
-            )}
-
-            {/* ── Card info footer ── */}
-            <div className="card-info">
-                <p className="card-title">{title}</p>
-                <div className="card-meta">
-                    <span className="card-year">{year}</span>
-                    {vote_average > 0 && (
-                        <span className="card-rating">⭐ {Number(vote_average).toFixed(1)}</span>
-                    )}
-                </div>
+            {/* ── Card footer info ── */}
+            <div className="mc__info">
+                <p className="mc__title">{title}</p>
+                {year && <span className="mc__year">{year}</span>}
             </div>
         </article>
     );

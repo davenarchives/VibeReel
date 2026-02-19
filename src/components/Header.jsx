@@ -1,91 +1,75 @@
 /**
  * Header.jsx  ─ Lab 3, Task 1: Reusable Component #2
- * ─────────────────────────────────────────────────────
- * A sticky site header that accepts props so it can be
- * reused on any page with different subtitle text.
+ * ──────────────────────────────────────────────────────
+ * Top navigation bar — inspired by Yorumi's header:
+ * logo left, nav center, user icon right.
  *
  * Props:
- *   subtitle  {string}  – small tagline shown below logo
- * ─────────────────────────────────────────────────────
+ *   subtitle {string} – small tagline under logo (optional)
+ * ──────────────────────────────────────────────────────
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-const Header = ({ subtitle = "Your personal cinema, powered by AI mood-matching." }) => {
+const Header = ({ subtitle }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [search, setSearch] = useState('');
+
+    const isHome = location.pathname === '/';
+
     return (
-        /* <header> is a semantic HTML5 landmark element */
-        <header className="site-header">
-            <div className="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
+        <header className="topbar" role="banner">
+            <div className="topbar__inner">
 
-                {/* ── Brand / Logo ── */}
-                <div className="flex items-center gap-3">
-                    {/* Animated icon badge */}
-                    <div
-                        className="pulse-glow"
-                        style={{
-                            width: 42,
-                            height: 42,
-                            borderRadius: 10,
-                            background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '1.4rem',
-                        }}
-                    >
-                        🎬
+                {/* ── Logo ── */}
+                <button className="topbar__logo" onClick={() => navigate('/')}>
+                    <span className="topbar__logo-vibe">Vibe</span>
+                    <span className="topbar__logo-reel">Reel</span>
+                </button>
+
+                {/* ── Nav links (desktop) ── */}
+                <nav className="topbar__nav" aria-label="Site Navigation">
+                    {[
+                        { label: 'Home', path: '/' },
+                        { label: 'Trending', path: '/' },
+                        { label: 'Mood Match', path: '/' },
+                    ].map(link => (
+                        <button
+                            key={link.label}
+                            className={`topbar__nav-link ${location.pathname === link.path && link.label === 'Home' ? 'active' : ''}`}
+                            onClick={() => navigate(link.path)}
+                        >
+                            {link.label}
+                        </button>
+                    ))}
+                </nav>
+
+                {/* ── Right side: search + avatar ── */}
+                <div className="topbar__right">
+                    {/* Search box */}
+                    <div className="topbar__search">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input
+                            type="text"
+                            placeholder="Search titles…"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            aria-label="Search movies"
+                        />
                     </div>
 
-                    {/* Logo text */}
-                    <div>
-                        <span
-                            style={{
-                                fontSize: '1.35rem',
-                                fontWeight: 800,
-                                background: 'linear-gradient(135deg, #a855f7, #c084fc)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                letterSpacing: '-0.02em',
-                            }}
-                        >
-                            VibeReel
-                        </span>
-                        {/* Dynamically renders the subtitle prop */}
-                        <p style={{ fontSize: '0.68rem', color: 'var(--vr-muted)', marginTop: 1 }}>
-                            {subtitle}
-                        </p>
+                    {/* User avatar pill */}
+                    <div className="topbar__avatar" aria-label="User Profile">
+                        <span>VR</span>
                     </div>
                 </div>
 
-                {/* ── Nav pills ── */}
-                <nav className="flex items-center gap-2" aria-label="Primary Navigation">
-                    <span
-                        style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--vr-muted)',
-                            background: 'var(--vr-surface2)',
-                            border: '1px solid var(--vr-border)',
-                            borderRadius: 999,
-                            padding: '5px 14px',
-                            fontWeight: 500,
-                        }}
-                    >
-                        🌐 TMDB Live
-                    </span>
-                    <span
-                        style={{
-                            fontSize: '0.75rem',
-                            color: '#a855f7',
-                            background: 'rgba(168,85,247,0.12)',
-                            border: '1px solid rgba(168,85,247,0.3)',
-                            borderRadius: 999,
-                            padding: '5px 14px',
-                            fontWeight: 600,
-                        }}
-                    >
-                        🤖 AI Mood Engine
-                    </span>
-                </nav>
             </div>
         </header>
     );

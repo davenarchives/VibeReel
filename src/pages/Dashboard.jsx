@@ -1,21 +1,16 @@
 /**
- * Dashboard.jsx  ─ Homepage "/"  (Discovery Dashboard)
+ * Dashboard.jsx  ─ Homepage "/"
  * ═══════════════════════════════════════════════════════════════
- * Lab Requirements demonstrated in this file:
+ * UI inspired by Yorumi & Mercy streaming sites:
+ *  • Full-width hero spotlight banner (first trending movie)
+ *  • Filter tab row (Mercy-style)
+ *  • Horizontal carousel rows (Yorumi-style)
  *
- *  ✅ Lab 2, Task 3 – Dynamic Rendering via .map()
- *     Lines marked with [MAP-RENDER] show where .map() is used
- *     to render both the TMDB API list and the local mock ML data.
- *
- *  ✅ Lab 3, Task 3 – Interactivity with useState
- *     `viewMode` state drives the toggle between
- *     "Global Trending" (TMDB API) and "My Mood Matches" (Mock ML).
- *     A second state `showInsights` toggles the ML insight panel.
- *
- *  ✅ Semantic HTML: <main>, <section>, <article> are used.
- *
- *  ✅ Reusable components: <Header>, <MovieCard>, <StatusCard>
- *     are imported and rendered with props.
+ * Lab Requirements:
+ *  ✅ Lab 2, Task 3  – .map() rendering (in MovieRow & here)
+ *  ✅ Lab 3, Task 3  – useState toggle (viewMode + showInsights)
+ *  ✅ Semantic HTML  – <main>, <section>, <article>, <header>
+ *  ✅ Reusable components with props
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -24,315 +19,256 @@ import { useNavigate } from 'react-router-dom';
 
 // ── Reusable components (Lab 3, Task 1) ──────────────────────
 import Header from '../components/Header';
-import MovieCard from '../components/MovieCard';
+import HeroBanner from '../components/HeroBanner';
+import MovieRow from '../components/MovieRow';
 import StatusCard from '../components/StatusCard';
 
-// ── Custom hook for live TMDB data ────────────────────────────
+// ── Data sources ──────────────────────────────────────────────
 import useTMDB from '../hooks/useTMDB';
-
-// ── Mock ML / CBF mood-match data ────────────────────────────
 import { MOOD_MOVIES } from '../data/moodData';
 
 // ─────────────────────────────────────────────────────────────
-// View mode constants (used with the useState toggle)
+// Tab filter config (Mercy-style top filter bar)
 // ─────────────────────────────────────────────────────────────
-const VIEW_TRENDING = 'trending';
-const VIEW_MOOD = 'mood';
+const TABS = [
+    { id: 'trending', label: '🌐 Trending', icon: '🌐' },
+    { id: 'mood', label: '🤖 Mood Matches', icon: '🤖' },
+    { id: 'toprated', label: '⭐ Top Rated', icon: '⭐' },
+    { id: 'action', label: '💥 Action', icon: '💥' },
+    { id: 'drama', label: '🎭 Drama', icon: '🎭' },
+];
 
 const Dashboard = () => {
     const navigate = useNavigate();
 
     /*
-     * ── Lab 3, Task 3: useState for view-mode toggle ──────────
-     * `viewMode` controls which dataset is rendered in the grid.
-     * Changing it causes React to re-render the MovieCard list
-     * with a completely different array — a visible UI update.
+     * ── Lab 3, Task 3: useState – active tab controls visible rows ──
+     * Changing `activeTab` triggers a re-render with different
+     * movie data — a clear, visible UI update.
      */
-    const [viewMode, setViewMode] = useState(VIEW_TRENDING);
+    const [activeTab, setActiveTab] = useState('trending');
 
     /*
-     * ── Lab 3, Task 3: useState for ML insights panel ─────────
-     * `showInsights` toggles the CBF explanation panel below the
-     * grid when the user is in Mood Match mode.
+     * ── Lab 3, Task 3: useState – ML insights panel toggle ──
      */
     const [showInsights, setShowInsights] = useState(false);
 
-    // ── Fetch live TMDB data from the custom hook ─────────────
-    const { movies: trendingMovies, loading, error } = useTMDB();
+    // Live TMDB trending data
+    const { movies: trending, loading } = useTMDB();
 
-    /*
-     * Determine which array to display based on viewMode state.
-     * This is the core of the interactive toggle behaviour.
-     */
-    const displayMovies = viewMode === VIEW_TRENDING
-        ? trendingMovies  // Live TMDB data
-        : MOOD_MOVIES;    // Mock CBF / ML data
+    // Derived slices for different "sections"
+    // (simulate multiple categories from one API call)
+    const topRated = [...trending].sort((a, b) => b.vote_average - a.vote_average).slice(0, 12);
+    const actionMix = trending.filter((_, i) => i % 2 === 0).slice(0, 12);
+    const dramaMix = trending.filter((_, i) => i % 2 !== 0).slice(0, 12);
 
-    // Navigate to the watch page when a card is clicked
-    const handleCardClick = (movie) => {
-        navigate(`/watch/${movie.id}`);
-    };
+    const handleCardClick = (movie) => navigate(`/watch/${movie.id}`);
 
-    // ─────────────────────────────────────────────────────────
+    // Hero movie = first trending result
+    const heroMovie = trending[0] || null;
+
     return (
-        <>
-            {/*
-        <Header> reusable component — subtitle changes based on
-        current view to reflect the active data source.
-      */}
-            <Header
-                subtitle={
-                    viewMode === VIEW_TRENDING
-                        ? "Discover what the world is watching right now."
-                        : "Your AI mood-matched recommendations."
-                }
-            />
+        <div className="page-wrapper">
+            {/* ── Sticky top navigation ── */}
+            <Header />
 
-            {/* ── Main content landmark ── */}
-            <main className="max-w-7xl mx-auto px-6 py-8" style={{ minHeight: '80vh' }}>
+            <main>
+                {/* ══════════════════════════════════════════════
+            HERO BANNER
+        ══════════════════════════════════════════════ */}
+                <HeroBanner movie={heroMovie} />
 
-                {/* ══════════════════════════════════════════════════
-            SECTION 1 – Dashboard stats row
-            Uses <StatusCard> reusable component with props
-        ══════════════════════════════════════════════════ */}
-                <section aria-label="Dashboard Statistics" className="flex flex-wrap gap-4 mb-8">
-
-                    {/*
-            [MAP-RENDER] ─ Lab 2, Task 3
-            Renders StatusCard list via .map() over a config array.
-          */}
-                    {[
-                        {
-                            icon: '🌍',
-                            label: 'Data Source',
-                            value: viewMode === VIEW_TRENDING ? 'TMDB API Live' : 'AI Mood Engine',
-                            color: 'rgba(168,85,247,0.18)',
-                        },
-                        {
-                            icon: '🎞️',
-                            label: 'Titles Shown',
-                            value: loading ? '…' : `${displayMovies.length} Movies`,
-                            color: 'rgba(245,158,11,0.18)',
-                        },
-                        {
-                            icon: '🤖',
-                            label: 'ML Algorithm',
-                            value: 'Content-Based Filtering',
-                            color: 'rgba(59,130,246,0.18)',
-                        },
-                        {
-                            icon: '📡',
-                            label: 'Stream Engine',
-                            value: 'Videasy iframe API',
-                            color: 'rgba(16,185,129,0.18)',
-                        },
-                    ].map((card) => (
-                        <StatusCard
-                            key={card.label}
-                            icon={card.icon}
-                            label={card.label}
-                            value={card.value}
-                            color={card.color}
-                        />
-                    ))}
-                </section>
-
-                {/* ══════════════════════════════════════════════════
-            SECTION 2 – Interactive Toggle + Section Title
-            Lab 3, Task 3: useState drives this toggle
-        ══════════════════════════════════════════════════ */}
-                <section aria-label="View Controls" className="mb-6">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-
-                        <h2 className="section-title" style={{ minWidth: 200 }}>
-                            {viewMode === VIEW_TRENDING ? '🌐 Global Trending' : '🤖 My Mood Matches'}
-                        </h2>
-
-                        {/* ── Toggle pill ─────────────────────────────────
-                Clicking either button calls setViewMode(),
-                which updates state and triggers a re-render
-                with a different movie array. [Lab 3, Task 3]
-            ── */}
-                        <div className="toggle-pill" role="group" aria-label="View Mode Toggle">
+                {/* ══════════════════════════════════════════════
+            FILTER TAB BAR  (Mercy-inspired)
+            Lab 3 Task 3: activeTab useState drives which
+            rows are highlighted / visible below
+        ══════════════════════════════════════════════ */}
+                <section className="filter-bar" aria-label="Content Filter">
+                    <div className="filter-bar__inner">
+                        {/*
+              [MAP-RENDER] ─ Lab 2, Task 3
+              Renders tab buttons dynamically from TABS array
+            */}
+                        {TABS.map(tab => (
                             <button
-                                className={viewMode === VIEW_TRENDING ? 'active' : ''}
+                                key={tab.id}
+                                className={`filter-tab ${activeTab === tab.id ? 'filter-tab--active' : ''}`}
                                 onClick={() => {
-                                    setViewMode(VIEW_TRENDING); // ← useState setter
+                                    setActiveTab(tab.id);   // ← useState setter
                                     setShowInsights(false);
                                 }}
-                                aria-pressed={viewMode === VIEW_TRENDING}
+                                aria-pressed={activeTab === tab.id}
                             >
-                                🌐 Trending
+                                {tab.label}
                             </button>
-                            <button
-                                className={viewMode === VIEW_MOOD ? 'active' : ''}
-                                onClick={() => setViewMode(VIEW_MOOD)} // ← useState setter
-                                aria-pressed={viewMode === VIEW_MOOD}
-                            >
-                                🤖 Mood Match
-                            </button>
-                        </div>
-
-                        {/* ── ML Insights toggle (Mood mode only) ── */}
-                        {viewMode === VIEW_MOOD && (
-                            <button
-                                onClick={() => setShowInsights(prev => !prev)} // ← useState toggle
-                                style={{
-                                    background: showInsights
-                                        ? 'linear-gradient(135deg,#a855f7,#7c3aed)'
-                                        : 'var(--vr-surface2)',
-                                    color: showInsights ? '#fff' : 'var(--vr-muted)',
-                                    border: '1px solid var(--vr-border)',
-                                    borderRadius: 999,
-                                    padding: '8px 18px',
-                                    fontSize: '0.82rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.25s ease',
-                                }}
-                            >
-                                {showInsights ? '🔽 Hide ML Insights' : '🔍 Show ML Insights'}
-                            </button>
-                        )}
+                        ))}
                     </div>
                 </section>
 
-                {/* ══════════════════════════════════════════════════
-            SECTION 3 – ML Insights Panel
-            Only visible when showInsights === true [useState]
-        ══════════════════════════════════════════════════ */}
-                {viewMode === VIEW_MOOD && showInsights && (
-                    <section aria-label="ML Algorithm Insights" className="mb-6 fade-in-up">
-                        <div className="ml-insight-panel">
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.75rem', color: '#a855f7' }}>
-                                🤖 How your recommendations are generated
-                            </h3>
+                {/* ══════════════════════════════════════════════
+            CONTENT ROWS
+            Show different carousels based on activeTab
+        ══════════════════════════════════════════════ */}
+                <div className="rows-container">
 
-                            {/*
-                [MAP-RENDER] ─ Lab 2, Task 3
-                Renders per-movie CBF explanations via .map()
-              */}
-                            <div className="flex flex-col gap-3">
-                                {MOOD_MOVIES.slice(0, 4).map((movie) => (
-                                    <div
-                                        key={movie.id}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'flex-start',
-                                            gap: '0.75rem',
-                                            padding: '0.6rem 0',
-                                            borderBottom: '1px solid var(--vr-border)',
-                                        }}
-                                    >
-                                        <span className="match-badge" style={{ flexShrink: 0, marginTop: 2 }}>
-                                            {movie.matchPercentage}%
-                                        </span>
-                                        <div>
-                                            <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--vr-text)' }}>
-                                                {movie.title}
-                                            </p>
-                                            <p style={{ fontSize: '0.72rem', color: 'var(--vr-muted)', marginTop: 2 }}>
-                                                {movie.cbfNote}
-                                            </p>
-                                        </div>
-                                        {/* Mood tags rendered via nested .map() */}
-                                        <div className="flex gap-1 flex-wrap ml-auto" style={{ flexShrink: 0 }}>
-                                            {movie.moodTags.map((tag) => (
-                                                <span
-                                                    key={tag}
-                                                    style={{
-                                                        fontSize: '0.65rem',
-                                                        background: 'var(--vr-surface)',
-                                                        border: '1px solid var(--vr-border)',
-                                                        borderRadius: 999,
-                                                        padding: '2px 8px',
-                                                        color: 'var(--vr-muted)',
-                                                    }}
-                                                >
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                    {/* ── TRENDING tab ── */}
+                    {activeTab === 'trending' && !loading && (
+                        <>
+                            <MovieRow
+                                title="Trending This Week"
+                                icon="🔥"
+                                movies={trending}
+                                onCardClick={handleCardClick}
+                            />
+                            <MovieRow
+                                title="New Releases"
+                                icon="🆕"
+                                movies={[...trending].reverse().slice(0, 12)}
+                                onCardClick={handleCardClick}
+                            />
+                        </>
+                    )}
+
+                    {/* ── MOOD MATCHES tab ── */}
+                    {activeTab === 'mood' && (
+                        <>
+                            {/* Insight toggle button */}
+                            <div className="insight-toggle-row">
+                                <button
+                                    className={`insight-btn ${showInsights ? 'insight-btn--active' : ''}`}
+                                    onClick={() => setShowInsights(p => !p)} /* ← useState toggle */
+                                >
+                                    {showInsights ? '🔽 Hide ML Insights' : '🔍 Show ML Algorithm Insights'}
+                                </button>
                             </div>
-                        </div>
-                    </section>
-                )}
 
-                {/* ══════════════════════════════════════════════════
-            SECTION 4 – Movie Grid
-            Lab 2, Task 3: Rendered with .map()
-            Lab 3, Task 1: Uses <MovieCard> reusable component
-        ══════════════════════════════════════════════════ */}
-                <section aria-label="Movie Grid">
+                            {/* ── ML Insights Panel ── */}
+                            {showInsights && (
+                                <section className="insight-panel fade-in-up" aria-label="ML Algorithm Details">
+                                    <h3 className="insight-panel__title">
+                                        🤖 Content-Based Filtering — How Your Matches Are Scored
+                                    </h3>
+                                    <div className="insight-panel__list">
+                                        {/*
+                      [MAP-RENDER] ─ Lab 2, Task 3
+                      Renders CBF explanation row per mock movie
+                    */}
+                                        {MOOD_MOVIES.map(m => (
+                                            <div key={m.id} className="insight-row">
+                                                <span className="insight-row__score">{m.matchPercentage}%</span>
+                                                <div className="insight-row__text">
+                                                    <strong>{m.title}</strong>
+                                                    <p>{m.cbfNote}</p>
+                                                </div>
+                                                <div className="insight-row__tags">
+                                                    {/* Nested .map() for mood tags [MAP-RENDER] */}
+                                                    {m.moodTags.map(tag => (
+                                                        <span key={tag} className="mood-tag">{tag}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
 
-                    {/* Loading state */}
-                    {loading && viewMode === VIEW_TRENDING && (
-                        <div className="flex flex-col items-center justify-center py-24 gap-4">
+                            <MovieRow
+                                title="AI Mood Matches"
+                                icon="🤖"
+                                movies={MOOD_MOVIES}
+                                onCardClick={handleCardClick}
+                                showBadge={true}
+                            />
+                            <MovieRow
+                                title="Because You Like Dark Thrillers"
+                                icon="🌑"
+                                movies={[...MOOD_MOVIES].reverse()}
+                                onCardClick={handleCardClick}
+                                showBadge={true}
+                            />
+                        </>
+                    )}
+
+                    {/* ── TOP RATED tab ── */}
+                    {activeTab === 'toprated' && !loading && (
+                        <>
+                            <MovieRow
+                                title="Top Rated Movies"
+                                icon="⭐"
+                                movies={topRated}
+                                onCardClick={handleCardClick}
+                            />
+                            <MovieRow
+                                title="Critically Acclaimed"
+                                icon="🏆"
+                                movies={[...topRated].slice(0, 8)}
+                                onCardClick={handleCardClick}
+                            />
+                        </>
+                    )}
+
+                    {/* ── ACTION tab ── */}
+                    {activeTab === 'action' && !loading && (
+                        <MovieRow
+                            title="Action & Adventure"
+                            icon="💥"
+                            movies={actionMix}
+                            onCardClick={handleCardClick}
+                        />
+                    )}
+
+                    {/* ── DRAMA tab ── */}
+                    {activeTab === 'drama' && !loading && (
+                        <MovieRow
+                            title="Drama"
+                            icon="🎭"
+                            movies={dramaMix}
+                            onCardClick={handleCardClick}
+                        />
+                    )}
+
+                    {/* ── Loading spinner ── */}
+                    {loading && (
+                        <div className="loading-center">
                             <div className="spinner" />
-                            <p style={{ color: 'var(--vr-muted)', fontSize: '0.9rem' }}>
-                                Fetching trending titles from TMDB…
-                            </p>
+                            <p>Fetching latest from TMDB…</p>
                         </div>
                     )}
 
-                    {/* Error state */}
-                    {error && (
-                        <div style={{
-                            background: 'rgba(239,68,68,0.1)',
-                            border: '1px solid rgba(239,68,68,0.3)',
-                            borderRadius: 'var(--vr-radius)',
-                            padding: '1.5rem',
-                            color: '#f87171',
-                            textAlign: 'center',
-                        }}>
-                            ⚠️ {error}
-                        </div>
-                    )}
+                    {/* ── Stats row (always visible) ── */}
+                    <section className="stats-row" aria-label="Dashboard Statistics">
+                        {/*
+              [MAP-RENDER] ─ Lab 2, Task 3
+              Renders StatusCard components from a config array
+            */}
+                        {[
+                            { icon: '🌍', label: 'Data Source', value: activeTab === 'mood' ? 'AI Mood Engine' : 'TMDB API Live', color: 'rgba(168,85,247,0.2)' },
+                            { icon: '🎞️', label: 'Titles Loaded', value: loading ? '…' : `${trending.length} Movies`, color: 'rgba(245,158,11,0.2)' },
+                            { icon: '🤖', label: 'ML Algorithm', value: 'Content-Based Filtering', color: 'rgba(59,130,246,0.2)' },
+                            { icon: '📡', label: 'Stream Engine', value: 'Videasy iframe API', color: 'rgba(16,185,129,0.2)' },
+                        ].map(card => (
+                            <StatusCard
+                                key={card.label}
+                                icon={card.icon}
+                                label={card.label}
+                                value={card.value}
+                                color={card.color}
+                            />
+                        ))}
+                    </section>
 
-                    {/*
-            [MAP-RENDER] ─ Lab 2, Task 3
-            `displayMovies.map()` iterates over either the TMDB
-            trending array OR the MOOD_MOVIES mock array,
-            rendering one <MovieCard> per item.
-          */}
-                    {!loading && !error && (
-                        <div className="movie-grid">
-                            {displayMovies.map((movie, index) => (
-                                <MovieCard
-                                    key={movie.id}
-                                    movie={movie}
-                                    onClick={handleCardClick}
-                                    animationDelay={`${index * 50}ms`}
-                                />
-                            ))}
-                        </div>
-                    )}
-
-                </section>
+                </div>{/* /rows-container */}
             </main>
 
-            {/* Semantic footer */}
-            <footer style={{
-                borderTop: '1px solid var(--vr-border)',
-                padding: '1.5rem',
-                textAlign: 'center',
-                color: 'var(--vr-muted)',
-                fontSize: '0.75rem',
-                marginTop: '3rem',
-            }}>
-                <p>
-                    VibeReel — AppDev Lab 3 Project &nbsp;·&nbsp;
-                    Powered by{' '}
-                    <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"
-                        style={{ color: 'var(--vr-accent)' }}>TMDB API</a>
-                    {' '}&amp;{' '}
-                    <a href="https://videasy.net/" target="_blank" rel="noopener noreferrer"
-                        style={{ color: 'var(--vr-accent)' }}>Videasy</a>
-                </p>
+            {/* ── Footer ── */}
+            <footer className="site-footer">
+                <div className="site-footer__inner">
+                    <span className="site-footer__logo">VibeReel</span>
+                    <p>AppDev Lab 3 · Powered by <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> &amp; <a href="https://videasy.net/" target="_blank" rel="noopener">Videasy</a></p>
+                    <p>© 2026 VibeReel</p>
+                </div>
             </footer>
-        </>
+        </div>
     );
 };
 
