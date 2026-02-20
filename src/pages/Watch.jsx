@@ -1,9 +1,8 @@
 /**
- * Watch.jsx  ─ Watch Page "/watch/:id"
+ * Watch.jsx  ─ Movie Detail / Watch Page "/watch/:id"
  * ═══════════════════════════════════════════════════════════════
- * Streams the selected movie via Videasy iframe.
- * UI: full-width player with info panel below — inspired by
- * Mercy's clean watch layout.
+ * Cinematic detail page with backdrop hero, poster, metadata,
+ * and an embedded player that appears when the user hits "Play".
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -11,33 +10,27 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import Header from '../components/Header';
-import StatusCard from '../components/StatusCard';
 import MovieRow from '../components/MovieRow';
 import Footer from '../components/Footer';
 import { MOOD_MOVIES } from '../data/moodData';
 
-const TMDB_API_KEY = '05a3f3071ad3fa222ab689fb62ed0df1';
-const VIDEASY_BASE = 'https://player.videasy.net/movie';
-const TMDB_IMG_BASE = 'https://image.tmdb.org/t/p/w500';
-const TMDB_BD_BASE = 'https://image.tmdb.org/t/p/original';
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
+const TMDB_BD = 'https://image.tmdb.org/t/p/original';
+
 
 const Watch = () => {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    /* ── useState: iframe load state ── */
-    const [playerReady, setPlayerReady] = useState(false);
-
-    /* ── useState: info panel visibility toggle ── */
-    const [showInfo, setShowInfo] = useState(true);
-
+    /* ── State ── */
     const [movieMeta, setMovieMeta] = useState(null);
     const [similar, setSimilar] = useState([]);
 
-    // ── Fetch movie metadata ──────────────────────────────────
+    /* ── Fetch movie data ── */
     useEffect(() => {
-        setPlayerReady(false);
         setMovieMeta(null);
+        setSimilar([]);
 
         const local = MOOD_MOVIES.find(m => m.id === Number(id));
         if (local) { setMovieMeta(local); return; }
@@ -55,145 +48,106 @@ const Watch = () => {
         fetchAll();
     }, [id]);
 
-    const videasyUrl = `${VIDEASY_BASE}/${id}`;
-    const backdropUrl = movieMeta?.backdrop_path
-        ? `${TMDB_BD_BASE}${movieMeta.backdrop_path}` : null;
+    /* ── Derived data ── */
+    const backdropUrl = movieMeta?.backdrop_path ? `${TMDB_BD}${movieMeta.backdrop_path}` : null;
+    const posterUrl = movieMeta?.poster_path ? `${TMDB_IMG}${movieMeta.poster_path}` : null;
+    const year = movieMeta?.release_date?.substring(0, 4);
+    const rating = movieMeta?.vote_average ? Number(movieMeta.vote_average).toFixed(1) : null;
+    const certification = movieMeta?.adult ? 'R' : 'PG-13';
 
     return (
         <div className="page-wrapper">
-            <Header subtitle={movieMeta ? `Watching: ${movieMeta.title}` : 'Loading…'} />
+            <Header />
 
             <main>
-                {/* ══════════════════════════════════════════════
-            PLAYER SECTION — full width
-        ══════════════════════════════════════════════ */}
-                <section className="watch-player-section" aria-label="Movie Player">
-                    <div className="watch-player-wrap">
-                        {/* Loading shimmer */}
-                        {!playerReady && (
-                            <div className="watch-player-shimmer skeleton">
-                                <div className="loading-center">
-                                    <div className="spinner" />
-                                    <p style={{ color: 'var(--vr-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-                                        Connecting to stream…
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-                        <iframe
-                            src={videasyUrl}
-                            title={movieMeta ? `Watch ${movieMeta.title}` : 'Movie Player'}
-                            allowFullScreen
-                            allow="autoplay; fullscreen; picture-in-picture"
-                            onLoad={() => setPlayerReady(true)}
-                            className={`watch-iframe ${playerReady ? 'watch-iframe--ready' : ''}`}
-                        />
-                    </div>
-                </section>
-
-                {/* ══════════════════════════════════════════════
-            BELOW-PLAYER AREA: back btn + title + info
-        ══════════════════════════════════════════════ */}
-                <div className="watch-below">
-
-                    {/* ── Action row ── */}
-                    <div className="watch-action-row">
-                        <button className="watch-back-btn" onClick={() => navigate('/')}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <polyline points="19 12 5 12" />
-                                <polyline points="12 5 5 12 12 19" />
-                            </svg>
-                            Back to Dashboard
-                        </button>
-
-                        <button
-                            className={`watch-info-btn ${showInfo ? 'active' : ''}`}
-                            onClick={() => setShowInfo(p => !p)} /* ← useState toggle */
-                        >
-                            {showInfo ? 'Hide Details' : 'Show Details'}
-                        </button>
-                    </div>
-
-                    {/* ── Movie title row ── */}
-                    {movieMeta && (
-                        <div className="watch-title-row">
-                            <h1 className="watch-title">{movieMeta.title}</h1>
-                            <div className="watch-meta">
-                                {movieMeta.release_date && (
-                                    <span>{movieMeta.release_date.substring(0, 4)}</span>
-                                )}
-                                {movieMeta.runtime && (
-                                    <span>{movieMeta.runtime} min</span>
-                                )}
-                                {movieMeta.vote_average > 0 && (
-                                    <span className="watch-rating">
-                                        ⭐ {Number(movieMeta.vote_average).toFixed(1)}
-                                    </span>
-                                )}
-                                <span className="hd-pill">HD</span>
-                            </div>
+                {/* ═══════════════════════════════════════════════
+                    DETAIL HERO — Backdrop + poster + info
+                ═══════════════════════════════════════════════ */}
+                <section className="detail-hero" aria-label="Movie Details">
+                    {/* Backdrop */}
+                    {backdropUrl && (
+                        <div className="detail-hero__backdrop">
+                            <img src={backdropUrl} alt="" aria-hidden="true" />
                         </div>
                     )}
+                    <div className="detail-hero__overlay" />
 
-                    {/* ── Info panel (toggled by showInfo state) ── */}
-                    {showInfo && movieMeta && (
-                        <div className="watch-info-grid fade-in-up">
+                    <div className="detail-hero__content">
+                        {/* Poster */}
+                        {posterUrl && (
+                            <div className="detail-hero__poster">
+                                <img
+                                    src={posterUrl}
+                                    alt={movieMeta?.title || 'Movie poster'}
+                                />
+                            </div>
+                        )}
 
-                            {/* Left: overview + genres */}
-                            <div className="watch-info-left">
-                                {movieMeta.tagline && (
-                                    <p className="watch-tagline">"{movieMeta.tagline}"</p>
-                                )}
-                                {movieMeta.overview && (
-                                    <p className="watch-overview">{movieMeta.overview}</p>
-                                )}
-                                {/* Genre pills via .map() [MAP-RENDER] */}
+                        {/* Info column */}
+                        {movieMeta && (
+                            <div className="detail-hero__info">
+                                <h1 className="detail-hero__title">
+                                    <MovieLogo
+                                        tmdbId={movieMeta.id || id}
+                                        title={movieMeta.title}
+                                        maxHeight="90px"
+                                    />
+                                </h1>
+
+                                {/* Meta row: year · rating · cert · HD */}
+                                <div className="detail-hero__meta">
+                                    {movieMeta.release_date && <span>{movieMeta.release_date}</span>}
+                                    {rating && <span>{rating}</span>}
+                                    <span className="detail-cert-badge">{certification}</span>
+                                    <span className="detail-hd-badge">HD</span>
+                                </div>
+
+                                {/* Genre pills */}
                                 {movieMeta.genres?.length > 0 && (
-                                    <div className="watch-genres">
+                                    <div className="detail-hero__genres">
                                         {movieMeta.genres.map(g => (
-                                            <span key={g.id} className="genre-pill">{g.name}</span>
+                                            <span key={g.id} className="detail-genre-pill">{g.name}</span>
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Overview */}
+                                {movieMeta.overview && (
+                                    <p className="detail-hero__overview">{movieMeta.overview}</p>
+                                )}
+
+                                {/* Play button */}
+                                <button className="detail-play-btn" onClick={() => navigate(`/play/${id}`)}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="5 3 19 12 5 21 5 3" />
+                                    </svg>
+                                    Play
+                                </button>
                             </div>
+                        )}
 
-                            {/* Right: stat cards via .map() [MAP-RENDER] */}
-                            <div className="watch-stats">
-                                {[
-                                    { icon: '⭐', label: 'Rating', value: movieMeta.vote_average ? `${Number(movieMeta.vote_average).toFixed(1)} / 10` : 'N/A', color: 'rgba(245,158,11,0.2)' },
-                                    { icon: '📅', label: 'Released', value: movieMeta.release_date || 'N/A', color: 'rgba(168,85,247,0.2)' },
-                                    { icon: '⏱️', label: 'Runtime', value: movieMeta.runtime ? `${movieMeta.runtime} min` : 'N/A', color: 'rgba(59,130,246,0.2)' },
-                                    { icon: '💰', label: 'Revenue', value: movieMeta.revenue ? `$${(movieMeta.revenue / 1e6).toFixed(0)}M` : 'N/A', color: 'rgba(16,185,129,0.2)' },
-                                ].map(s => (
-                                    <StatusCard
-                                        key={s.label}
-                                        icon={s.icon}
-                                        label={s.label}
-                                        value={s.value}
-                                        color={s.color}
-                                    />
-                                ))}
+                        {/* Loading state */}
+                        {!movieMeta && (
+                            <div className="loading-center" style={{ padding: '4rem 0' }}>
+                                <div className="spinner" />
+                                <p>Loading movie details...</p>
                             </div>
+                        )}
+                    </div>
+                </section>
 
-                        </div>
-                    )}
 
-                    {/* ── Similar Movies carousel ── */}
+                {/* ═══════════════════════════════════════════════
+                    SIMILAR MOVIES
+                ═══════════════════════════════════════════════ */}
+                <div className="rows-container" style={{ paddingTop: '1rem' }}>
                     {similar.length > 0 && (
                         <MovieRow
                             title="More Like This"
-                            icon="🎬"
                             movies={similar}
                             onCardClick={(m) => navigate(`/watch/${m.id}`)}
                         />
                     )}
-
-                    {/* Attribution */}
-                    <p className="watch-attribution">
-                        Streaming via <a href="https://videasy.net" target="_blank" rel="noopener noreferrer">Videasy</a>
-                        &nbsp;·&nbsp; TMDB ID: <code>{id}</code>
-                    </p>
                 </div>
             </main>
 
